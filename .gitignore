@@ -1,2 +1,9 @@
-/.venv/
-/data
+.venv/
+__pycache__/
+*.pyc
+
+# Rohdaten und abgeleitete Tabellen werden lokal erzeugt (src/build_all.py)
+data/raw/
+data/processed/
+
+*.md

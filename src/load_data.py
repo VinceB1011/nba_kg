@@ -1,7 +1,5 @@
 from pathlib import Path
 import pandas as pd
-import requests
-from normalize import build_team_map, build_game_map
 
 DATA_DIR = Path("data/raw")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -86,31 +84,6 @@ def inspect(name: str, df: pd.DataFrame, rows: int = 3) -> None:
     print(df.head(rows).to_string())
 
 
-if __name__ == "__main__":
-    # 2025 means season 2025/26 in the shufinskiy/cdechoch archive.
-    season = 2025
-
-    pbp = load_pbp(season)
-    inspect("PLAY BY PLAY", pbp)
-
-    matchups = load_matchups(season)
-    inspect("MATCHUPS", matchups)
-
-    shots = load_shots(season)
-    inspect("SHOTS", shots)
-
-print("\nACTION TYPES")
-print(pbp["actionType"].value_counts().to_string())
-
-print("\nSUBSTITUTIONS")
-subs = pbp[
-    pbp["actionType"]
-    .astype(str)
-    .str.lower()
-    .str.contains("sub")
-]
-
-print(subs.head(15).to_string())
 
 def load_sdv_parquet(
     release_tag: str,
@@ -178,87 +151,24 @@ def load_rosters(season_start_year: int) -> pd.DataFrame:
         cache_name=f"sdv_rosters_{season_start_year}.parquet",
     )
 
+
+def load_all(season_start_year: int) -> dict[str, pd.DataFrame]:
+    """
+    Laedt alle Rohquellen einer Saison und gibt sie als dict zurueck.
+    """
+    return {
+        "pbp": load_pbp(season_start_year),
+        "matchups": load_matchups(season_start_year),
+        "shots": load_shots(season_start_year),
+        "schedule": load_schedule(season_start_year),
+        "player_box": load_player_boxscores(season_start_year),
+        "rosters": load_rosters(season_start_year),
+    }
+
+
 if __name__ == "__main__":
-    season = 2025
+    # 2025 bedeutet Saison 2025/26 im shufinskiy/cdechoch Archiv.
+    raw = load_all(2025)
 
-    # Existing archive data
-    pbp = load_pbp(season)
-    matchups = load_matchups(season)
-    shots = load_shots(season)
-
-    # New SportsDataverse data
-    schedule = load_schedule(season)
-    inspect("SCHEDULE", schedule)
-
-    player_box = load_player_boxscores(season)
-    inspect("PLAYER BOXSCORES", player_box)
-
-    rosters = load_rosters(season)
-    inspect("ROSTERS", rosters)
-
-    team_map = build_team_map(schedule, matchups)
-
-    print("\nTEAM MAP")
-    print(team_map["_merge"].value_counts())
-
-    print("\nUNMATCHED TEAMS")
-    print(
-        team_map[
-            team_map["_merge"] != "both"
-        ].to_string(index=False)
-    )
-
-
-    game_map = build_game_map(schedule, shots)
-
-    print("\nGAME MAP")
-    print(game_map["_merge"].value_counts())
-
-    matched = game_map["nba_game_id"].notna().sum()
-    total = len(game_map)
-
-    print(f"\nMatched games: {matched}/{total}")
-    print(f"Coverage: {matched / total:.2%}")
-
-    print("\nUNMATCHED REGULAR-SEASON GAMES")
-    print(
-        game_map[
-            game_map["nba_game_id"].isna()
-        ][
-            [
-                "espn_game_id",
-                "game_date",
-                "home_abbreviation",
-                "away_abbreviation",
-            ]
-        ]
-        .head(50)
-        .to_string(index=False)
-    )
-
-    unmatched_ids = game_map.loc[
-    game_map["nba_game_id"].isna(),
-    "espn_game_id",
-]
-
-unmatched_details = schedule[
-    schedule["game_id"].isin(unmatched_ids)
-][
-    [
-        "game_id",
-        "game_date",
-        "home_abbreviation",
-        "away_abbreviation",
-        "home_score",
-        "away_score",
-        "status_type_name",
-        "status_type_state",
-        "status_type_completed",
-        "status_type_description",
-        "status_type_detail",
-        "notes_type",
-        "notes_headline",
-    ]
-]
-
-print(unmatched_details.to_string(index=False))
+    for name, df in raw.items():
+        inspect(name.upper(), df)
