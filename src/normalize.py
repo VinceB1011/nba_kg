@@ -92,6 +92,15 @@ def build_team_map(
     schedule: pd.DataFrame,
     matchups: pd.DataFrame,
 ) -> pd.DataFrame:
+    """
+    Ein Team ist echt, wenn es Regular-Season-Spiele bestreitet.
+
+    Deshalb wird der Schedule zuerst gefiltert - die All-Star-Auswahlen
+    (Team Stars, Team Stripes, World) tauchen dann gar nicht erst auf.
+    Der `_merge`-Indikator filtert nichts mehr, sondern belegt nur noch,
+    dass beide Quellen dieselben Teams kennen.
+    """
+    schedule = filter_regular_season(schedule)
 
     espn_home = schedule[
         ["home_id", "home_abbreviation", "home_display_name"]
@@ -155,6 +164,39 @@ def build_team_map(
         indicator=True,
     )
 
+# Spiele, die ESPN unter season_type 2 fuehrt, die aber nicht zur
+# Regular Season zaehlen und in keiner Teambilanz auftauchen.
+#
+# Achtung: NBA-Cup-Spiele der Gruppenphase sowie Viertel- und Halbfinals
+# ZAEHLEN als regulaere Saisonspiele - nur das Finale nicht, sonst haetten
+# die beiden Finalisten 83 statt 82 Spiele.
+NON_REGULAR_SEASON_HEADLINES = {
+    "NBA All-Star - Round Robin",
+    "NBA All-Star - Championship",
+    "NBA Cup Championship",
+}
+
+
+def filter_regular_season(schedule: pd.DataFrame) -> pd.DataFrame:
+    """
+    Die tatsaechlich gespielten Regular-Season-Spiele.
+
+    Drei Bedingungen:
+      - season_type == 2 (schliesst Playoffs und Play-In aus)
+      - status_type_completed (verschobene Spiele stehen als Platzhalter
+        mit Score 0 im Schedule und tauchen unter dem Nachholtermin
+        erneut auf)
+      - kein All-Star- oder NBA-Cup-Finalspiel
+    """
+    games = schedule[
+        (schedule["season_type"] == 2)
+        & (schedule["status_type_completed"])
+        & (~schedule["notes_headline"].isin(NON_REGULAR_SEASON_HEADLINES))
+    ]
+
+    return games
+
+
 def build_game_map(
     schedule: pd.DataFrame,
     shots: pd.DataFrame,
@@ -165,10 +207,7 @@ def build_game_map(
     # Variante A: nur tatsaechlich gespielte Regular-Season-Games.
     # Verschobene Spiele stehen als Platzhalter mit Score 0 im Schedule
     # und tauchen spaeter unter dem Makeup-Date erneut auf.
-    espn_games = schedule[
-        (schedule["season_type"] == 2)
-        & (schedule["status_type_completed"])
-    ][
+    espn_games = filter_regular_season(schedule)[
         [
             "game_id",
             "game_date",

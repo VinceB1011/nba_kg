@@ -25,10 +25,21 @@ def _to_int64(series: pd.Series) -> pd.Series:
 
 def build_teams(team_map: pd.DataFrame) -> pd.DataFrame:
     """
-    Die 30 echten NBA-Teams. All-Star-Teams (STARS/STRIPES/WORLD)
-    haben kein NBA-Gegenstueck und fallen ueber den Merge-Indikator raus.
+    Die 30 NBA-Teams.
+
+    Wer dazugehoert, entscheidet bereits `build_team_map` ueber den
+    Regular-Season-Filter. Hier wird nur noch geprueft, dass ESPN- und
+    NBA-Seite deckungsgleich sind - ein `left_only` oder `right_only`
+    waere jetzt ein echter Fehler und kein erwarteter All-Star-Eintrag.
     """
-    teams = team_map[team_map["_merge"] == "both"].copy()
+    unerwartet = team_map[team_map["_merge"] != "both"]
+
+    assert unerwartet.empty, (
+        "Teams nur in einer Quelle:\n"
+        f"{unerwartet[['espn_team_id', 'team_abbreviation', 'nba_team_id']].to_string(index=False)}"
+    )
+
+    teams = team_map.copy()
 
     teams["team_id"] = _to_int64(teams["espn_team_id"])
     teams["nba_team_id"] = _to_int64(teams["nba_team_id"])
@@ -54,10 +65,12 @@ def build_games(
     season_start_year: int,
 ) -> pd.DataFrame:
     """
-    Die 1230 Regular-Season-Games, fuer die auch NBA-Daten existieren.
+    Die 1230 Regular-Season-Games.
 
-    Nicht enthalten: All-Star-Spiele und das NBA-Cup-Finale
-    (siehe docs/nba_kg_documentation.md, Abschnitt 11).
+    Welche Spiele dazugehoeren, entscheidet `filter_regular_season` in
+    normalize.py - All-Star und NBA-Cup-Finale sind dort schon raus.
+    Hier faellt nur noch weg, wofuer keine NBA-Daten vorliegen; das
+    sollte normalerweise nichts sein und wird deshalb gemeldet.
 
     `season` ist immer das Startjahr der Saison: 2025 steht fuer 2025/26.
     Spiele von Januar bis April tragen also das Vorjahr. ESPN liefert in
@@ -65,7 +78,17 @@ def build_games(
     wird hier bewusst verworfen, damit im ganzen Projekt eine einzige
     Konvention gilt.
     """
-    games = game_map[game_map["nba_game_id"].notna()].copy()
+    ohne_nba_daten = game_map["nba_game_id"].isna()
+
+    if ohne_nba_daten.any():
+        fehlend = game_map[ohne_nba_daten]
+        print(f"[warn] {len(fehlend)} Regular-Season-Spiele ohne NBA-Gegenstueck:")
+        print(
+            fehlend[["espn_game_id", "game_date", "home_abbreviation", "away_abbreviation"]]
+            .to_string(index=False)
+        )
+
+    games = game_map[~ohne_nba_daten].copy()
 
     scores = schedule[
         ["game_id", "home_id", "away_id", "home_score", "away_score"]

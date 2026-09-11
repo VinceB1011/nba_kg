@@ -7,6 +7,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 def season_to_sdv_year(start_year: int) -> int:
     """
+    Projektkonvention: eine Saison wird ueber ihr Startjahr benannt.
+    2025 bedeutet 2025/26.
+
+    SportsDataverse benennt dieselbe Saison ueber das Endjahr,
+    das cdechoch/shufinskiy-Archiv ueber das Startjahr.
+
     2025 -> 2026 for the 2025/26 NBA season.
     """
     return start_year + 1
@@ -123,7 +129,7 @@ def load_schedule(season_start_year: int) -> pd.DataFrame:
 
     SportsDataverse uses 2026 for the 2025/26 season.
     """
-    sdv_year = season_start_year + 1
+    sdv_year = season_to_sdv_year(season_start_year)
 
     return load_sdv_parquet(
         release_tag="espn_nba_schedules",
@@ -133,7 +139,7 @@ def load_schedule(season_start_year: int) -> pd.DataFrame:
 
 
 def load_player_boxscores(season_start_year: int) -> pd.DataFrame:
-    sdv_year = season_start_year + 1
+    sdv_year = season_to_sdv_year(season_start_year)
 
     return load_sdv_parquet(
         release_tag="espn_nba_player_boxscores",
@@ -143,7 +149,7 @@ def load_player_boxscores(season_start_year: int) -> pd.DataFrame:
 
 
 def load_rosters(season_start_year: int) -> pd.DataFrame:
-    sdv_year = season_start_year + 1
+    sdv_year = season_to_sdv_year(season_start_year)
 
     return load_sdv_parquet(
         release_tag="espn_nba_rosters",
